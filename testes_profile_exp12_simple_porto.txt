@@ -1,0 +1,6 @@
+n:4;s:1;d:p
+name:Experiment11_Porto_fv_NONORMSUB_FIX_AP2
+folder:Budget;g:630;e:0.05,0.1,0.2,0.3,0.5,1;e_prop:0.3;w:4;p:12
+folder:Granularity;g:900,750,630,520,450,350;e:0.3;e_prop:0.3;w:4;p:12
+folder:Numpoints;g:630;e:0.3;e_prop:0.3;w:4;p:4,8,12,16,20
+folder:Windows;g:630;e:0.3;e_prop:0.3;w:1,2,3,4,5;p:12
