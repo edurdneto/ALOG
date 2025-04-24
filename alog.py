@@ -25,25 +25,19 @@ import csv
 ## Structure imports
 
 from grid import Grid
-from grid2 import Grid2
 from shapely.geometry import Point
 from pathlib import Path
 import pandas as pd
 from tqdm import tqdm
-import seaborn as sns
-import matplotlib.pyplot as plt
 import datetime
 from multiprocessing import Pool
 import os
-from functools import partial
-import math
 from shapely.ops import unary_union
 import copy
 import pickle
-import threading
 import sys
-
 from dataset import load_data
+
 
 import warnings; warnings.filterwarnings('ignore')
 
@@ -52,14 +46,10 @@ import time
 import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_squared_error,mean_absolute_error
-from sklearn.preprocessing import LabelEncoder
-from sklearn.cluster import DBSCAN
 
-from FO.LDP.protocols import setting_seed
-from FO.LDP.protocols import LOLOHA_Client, LOLOHA_Aggregator
-from FO.LDP.protocols import RAPPOR_Client, RAPPOR_Client_TAU, RAPPOR_Aggregator # [1]
-from FO.LDP.protocols import L_GRR_Client, L_GRR_Client_TAU, L_GRR_Aggregator 
-from FO.LDP.protocols import L_OSUE_Client, L_OSUE_Client_TAU, L_OSUE_Aggregator
+from FO.LDP.protocols import RAPPOR_Client_TAU, RAPPOR_Aggregator 
+from FO.LDP.protocols import L_GRR_Client_TAU, L_GRR_Aggregator 
+from FO.LDP.protocols import L_OSUE_Client_TAU, L_OSUE_Aggregator
 from FO.LDP.protocols import LOLOHA_Client_TAU, LOLOHA_Aggregator_TAU 
 
 #####################################################################
@@ -125,22 +115,20 @@ def split_grid(grid,est_freq,num_users,fr,check_norm=False,count_check=False):
         print(f"Error: {e}")
         print(f"Length of est_freq: {len(est_freq)}")
         for f in est_freq:
-            if not isinstance(f, float) or f != f:  # f != f is a way to check for NaN
+            if not isinstance(f, float) or f != f:  
                 print(f"Problematic value: {f}")
-        raise  # Re-raise the error to ensure you notice the issue
+        raise  
 
     grid_list = []
     for i in range(len(grid)):
         grid_list.append([grid.iloc[i]['geometry'].bounds,grid.iloc[i]['label'],est_freq[i]])
     
     new_grid_list = []
-    # print("tr:",fr)
-    # print("type:",type(fr))
+    
     for g in grid_list:
         if g[2] > fr:
             new_grid_list += naive_split(g,fr)
         else:
-            # print("count_grid_cell:",g[2])
             new_grid_list.append(g)
 
             
@@ -154,7 +142,6 @@ def split_grid(grid,est_freq,num_users,fr,check_norm=False,count_check=False):
 
 def naive_split_fr(cell,fr):
     
-    #divide a célula em 4 considerando que os dados são uniformes, portanto o count de cada nova cell é igual a cell[2]/4. Nova conta precisa ser inteira e a soma igual a cell[2]
     new_cells = []
     new_fr = cell[2] / 4
     
@@ -186,7 +173,6 @@ def naive_split_fr(cell,fr):
 
 def naive_split(cell,fr):
     
-    #divide a célula em 4 considerando que os dados são uniformes, portanto o count de cada nova cell é igual a cell[2]/4. Nova conta precisa ser inteira e a soma igual a cell[2]
     new_cells = []
     new_fr = cell[2] / 4
     
@@ -217,6 +203,7 @@ def naive_split(cell,fr):
 
 
 def gen_execution_data(data_set_type, data_set_distribution,file_name,ti,num_points,n_users,speed):
+    
     # Generate syntetic Data
 
     speed = speed
@@ -225,10 +212,7 @@ def gen_execution_data(data_set_type, data_set_distribution,file_name,ti,num_poi
     y_min = 0
     y_max = 10000
     
-    ## Os dados sintéticos são gerados com um timestamp de 60s, então vamos considerar um tempo de modificação do
-    ## heatmap de 5 minutos, ou seja, 5 timestamps - Podemos testar outros valores depois
-   
-
+    
     ######################################
     ##   distribution:                   #
     ##   - 0: uniform distribution       #
@@ -259,192 +243,17 @@ def gen_execution_data(data_set_type, data_set_distribution,file_name,ti,num_poi
             return
 
     return data, x_min, y_min, x_max, y_max
-    # return data
-
+    
 #####################################################################
 #                             APROACHES                             #   
 #####################################################################
-############################### AP1 #################################
-#####################################################################
-
-def AP1(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_info,num_points,check_norm=False,tr_count=False):
-    
-    #AP1 has grid adaptation every ts. So, we need to create a new memo_vector for each user at each ts. So 
-    # the same user is always using a different memo vector for each ts. So we dont need memoization
-    memoization = False
-
-    #ti = 60 #seconds
-    execution_times = 2
-
-    x_min, y_min, x_max, y_max, num_points, n_users = data_info
-  
-    tau = num_points
-
-    eps_perm_base = eps_perm
-
-    alpha = 1/tau
-        
-    # eps_perm_per_tau = eps_perm_base / num_points
-    
-    grid_instance = Grid((x_min,y_min),(x_max,y_max),cell_size)
-    
-    tr_value = 1
-    
-    grid_instance.create_syntetic_grid()
-
-    grid_base = grid_instance.get_grid()
-
-    num_users = len(data)
-
-    
-    lst_mse = [] # List of all MSE per data collection
-    lst_mae = [] # List of all MAE per data collection
-    grid_k = []
-    grid_coordenates = []
-    tr_vector = []
-    est_frequency_vector = []
-    
-    # client - side
-    
-    k =  len(grid_base)
-
-    grid_size_base = k
-
-    final_budget_users = [0 for _ in range(n_users)]
-
-
-    for t in range(tau): # For each data collection
-        # print("Execution of ts:",t)
-        count_vector = []
-        coord_vector = []
-        tr_vector = []
-        
-        grid = copy.deepcopy(grid_base)
-
-        k = len(grid)
-
-        data_tau = [[lista[t]] for lista in data]
-        data_encoded = encode_dada(data_tau,grid)   
-
-        
-        #### AP1 ONLY ####        
-        eps_perm1 = eps_perm * bp
-        eps_perm2 = eps_perm * (1-bp)
-        eps_11 = eps_perm1 * alpha
-        eps_12 = eps_perm2 * alpha
-        ##################
-
-        
-        for e in range(execution_times):
-
-            reports = []
-
-              
-            if e != 0:
-               
-                if tr_count:
-                    tr_value = int(n_users * tr)
-                    #tr_value = int(n_users/k) # looking for uniformity
-                else:
-                    tr_value = 1 / k
-
-                # if any values from est_freq is different from 0, we will split the grid
-                if any(est_freq):
-                    grid = split_grid(grid, est_freq,num_users, tr_value, check_norm,tr_count)
-
-                    k = len(grid)
-                    data_encoded = encode_dada(data_tau,grid)
-
-                eps_perm = eps_perm2
-                eps_1 = eps_12
-                
-            else:
-                eps_perm = eps_perm1
-                eps_1 = eps_11
-
-
-            if protocol == 'LOLOHA':
-                g = int(max(np.rint((np.sqrt(np.exp(4*eps_perm) - 14*np.exp(2*eps_perm)
-                                            - 12*np.exp(2*eps_perm*(alpha+1)) + 12*np.exp(eps_perm*(alpha+1))
-                                                + 12*np.exp(eps_perm*(alpha+3)) + 1) - np.exp(2*eps_perm)
-                                                + 6*np.exp(eps_perm) - 6*np.exp(eps_perm*alpha) + 1)
-                                                    / (6*(np.exp(eps_perm) - np.exp(eps_perm*alpha)))), 2))
-                user_memo_vector = [{val: None for val in range(g)} for _ in range(n_users)]
-            else:
-                user_memo_vector = [{val: None for val in range(k)} for _ in range(n_users)]  
-
-            for i in range(n_users):
-                if protocol == 'RAPPOR':
-                    report, user_memo_vector[i], budget_used = RAPPOR_Client_TAU(data_encoded[i][0], k, eps_perm, eps_1,user_memo_vector[i], memoization)
-                if protocol == 'LGRR':
-                    report, user_memo_vector[i], budget_used = L_GRR_Client_TAU(data_encoded[i][0], k, eps_perm, eps_1,user_memo_vector[i], memoization)
-                if protocol == 'LOSUE':
-                    report, user_memo_vector[i], budget_used = L_OSUE_Client_TAU(data_encoded[i][0], k, eps_perm, eps_1,user_memo_vector[i], memoization)
-                if protocol == 'LOLOHA':
-                    report, user_memo_vector[i], budget_used = LOLOHA_Client_TAU(data_encoded[i][0], g, eps_perm, eps_1,user_memo_vector[i], memoization)
-
-
-                reports.append(report)
-                final_budget_users[i] += budget_used
-
-
-            ts_values = []
-            for loc in data_encoded:
-                ts_values.append(loc[0])
-        
-            # Server-Side
-
-            real_freq = get_real_freq(ts_values,k)
-            if protocol == 'RAPPOR':
-                est_freq = RAPPOR_Aggregator(np.array(reports), eps_perm, eps_1)
-            if protocol == 'LGRR':
-                est_freq = L_GRR_Aggregator(np.array(reports), k, eps_perm, eps_1)
-            if protocol == 'LOSUE':
-                est_freq = L_OSUE_Aggregator(np.array(reports), eps_perm, eps_1)
-            if protocol == 'LOLOHA':
-                est_freq = LOLOHA_Aggregator_TAU(np.array(reports), k, eps_perm, eps_1, g)
-        
-              
-            est_fr_vector = [fr for fr in est_freq]
-
-        count_vector = [0 for _ in range(k)]
-
-        for i in data_encoded:
-            count_vector[i[0]] += 1
-
-        tr_vector.append(tr_value)
-
-        # coordenates = xmin, ymin, xmax, ymax 
-
-
-        # for i in range(len(grid)):
-        #     coord_vector.append((grid.iloc[i]['geometry'].bounds))
-
-        # grid_coordenates.append((coord_vector,count_vector))   
-        est_frequency_vector.append(est_fr_vector)     
-        
-        grid_k.append(k) #Save the list of grids used
-                                # tr_tau.append(tr)
-        lst_mse.append(mean_squared_error(real_freq, est_freq))
-        lst_mae.append(mean_absolute_error(real_freq, est_freq))
-    
-    budget_tracking = np.mean(final_budget_users) 
-
-    results.append((seed,protocol,structure,eps_perm,eps_perm_base,bp,grid_size_base,grid_k,budget_tracking,est_frequency_vector,lst_mse,np.mean(lst_mse),lst_mae,np.mean(lst_mae),w,num_points))
-    
-
-    return results, grid_coordenates
-
-#####################################################################
-############################### AP2 #################################
+############################### AP2 - ALOG-2R########################
 #####################################################################
 
 def AP2(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_info,num_points,check_norm=False,tr_count=False,notmsub=True):
 
-    # ti = 60 #seconds
     execution_times = 2
-    # jump = 5 * 60 / ti #(every 5 minutes we will change the base grid)
-
+    
     x_min, y_min, x_max, y_max, num_points, n_users = data_info
   
     tau = num_points
@@ -455,10 +264,6 @@ def AP2(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_inf
 
     num_users = len(data)
         
-    # eps_perm_base = eps_perm
-
-    # eps_perm_per_tau = eps_perm_base / num_points
-    
     grid_instance = Grid((x_min,y_min),(x_max,y_max),cell_size)
     
     tr_value = 1
@@ -496,9 +301,7 @@ def AP2(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_inf
 
 
     for t in range(tau): # For each data collection
-        # print("Execution of ts:",t)
         count_vector = []
-        coord_vector = []
         tr_vector = []
         
         grid = copy.deepcopy(grid_base)
@@ -509,7 +312,6 @@ def AP2(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_inf
         data_encoded = encode_dada(data_tau,grid)   
 
         
-        #### 0, 5,10,15,20
         if t % w == 0:
             execution_times = 2
             eps_perm1 = eps_perm * bp
@@ -531,9 +333,7 @@ def AP2(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_inf
                 memoization = False
                
                 if tr_count:
-                    # tr_value = int(n_users * tr)
                     tr_value = int(10000 * tr)
-                    #tr_value = int(n_users/k) # looking for uniformity
                 else:
                     tr_value = 1 / k
                 grid_base = split_grid(grid, est_freq, num_users, tr_value, check_norm,tr_count)
@@ -546,15 +346,13 @@ def AP2(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_inf
 
                 user_memo_vector = [{val: None for val in range(k)} for _ in range(n_users)]
                 
-                # memoization = False
-
+         
             else:
                 memoization = True
                 eps_perm_temp = eps_perm1
                 eps_1_temp = eps_11
 
-                # memoization = True
-
+         
 
             for i in range(n_users):
                 if protocol == 'RAPPOR':
@@ -596,17 +394,9 @@ def AP2(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_inf
 
         tr_vector.append(tr_value)
 
-        # coordenates = xmin, ymin, xmax, ymax 
-
-
-        # for i in range(len(grid)):
-        #     coord_vector.append((grid.iloc[i]['geometry'].bounds))
-
-        # grid_coordenates.append((coord_vector,count_vector))   
         est_frequency_vector.append(est_fr_vector)     
         
         grid_k.append(k) #Save the list of grids used
-                                # tr_tau.append(tr)
         est_freq = np.nan_to_num(est_freq)
         real_freq = np.nan_to_num(real_freq)
         
@@ -622,15 +412,12 @@ def AP2(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_inf
 
 
 #####################################################################
-############################### AP3 #################################
+############################### AP3 - ALOG-1Ra#######################
 #####################################################################
 
 def AP3(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_info,num_points,check_norm=False,tr_count=False,notmsub=True):
 
-    # ti = 60 #seconds
-    # execution_times = 2
-    # jump = 5 * 60 / ti #(every 5 minutes we will change the base grid)
-
+    
     x_min, y_min, x_max, y_max, num_points, n_users = data_info
   
     tau = num_points
@@ -641,7 +428,6 @@ def AP3(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_inf
 
     num_users = len(data)
 
-    # eps_perm_per_tau = eps_perm_base / num_points
     
     grid_instance = Grid((x_min,y_min),(x_max,y_max),cell_size)
     
@@ -675,9 +461,7 @@ def AP3(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_inf
 
 
     for t in range(tau): # For each data collection
-        # print("Execution of ts:",t)
         count_vector = []
-        coord_vector = []
         tr_vector = []
         
         grid = copy.deepcopy(grid_base)
@@ -688,14 +472,10 @@ def AP3(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_inf
         data_encoded = encode_dada(data_tau,grid)   
 
         
-        # eps_perm = eps_perm_per_tau
-        # eps_1 = eps_perm_per_tau * alpha
-
         eps_1 = eps_perm * alpha
 
         memoization = True
 
-        #### 0, 5,10,15,20
         if t % w == 0:
             grid_reconstrution = True
         else:   
@@ -745,26 +525,16 @@ def AP3(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_inf
 
         tr_vector.append(tr_value)
 
-        # coordenates = xmin, ymin, xmax, ymax 
-
-
-        # for i in range(len(grid)):
-        #     coord_vector.append((grid.iloc[i]['geometry'].bounds))
-
-        # grid_coordenates.append((coord_vector,count_vector))   
         est_frequency_vector.append(est_fr_vector)     
             
         grid_k.append(k) #Save the list of grids used
-                                # tr_tau.append(tr)
         lst_mse.append(mean_squared_error(real_freq, est_freq))
         lst_mae.append(mean_absolute_error(real_freq, est_freq))
 
         ### Reconstrution ###
         if grid_reconstrution:
             if tr_count:
-                # tr_value = int(n_users * tr)
                 tr_value = int(10000 * tr)
-                #tr_value = int(n_users/k) # looking for uniformity
             else:
                 tr_value = 1 / k
             grid_base = split_grid(grid, est_freq, num_users, tr_value, check_norm,tr_count)
@@ -785,11 +555,12 @@ def AP3(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_inf
 
     return results, grid_coordenates
 
+#####################################################################
+############################### AP4 - ALOG-1Rb#######################
+#####################################################################
+
 
 def AP4(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_info,num_points,check_norm=False,tr_count=False,notmsub=True):
-
-    # ti = 60 #seconds
-    # jump = 5 * 60 / ti #(every 5 minutes we will change the base grid)
 
     x_min, y_min, x_max, y_max, num_points, n_users = data_info
   
@@ -800,8 +571,6 @@ def AP4(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_inf
     alpha = 1/tau   
 
     num_users = len(data) 
-    
-    # eps_perm_per_tau = eps_perm_base / num_points
     
     grid_instance = Grid((x_min,y_min),(x_max,y_max),cell_size)
     
@@ -839,12 +608,10 @@ def AP4(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_inf
 
     
     for t in range(tau): # For each data collection
-        # print("Execution of ts:",t)
         count_vector = []
         coord_vector = []
         tr_vector = []
         
-        #### 0, 5,10,15,20
         if t % w == 0:
             grid_reconstrution = True
             grid = copy.deepcopy(grid_base)
@@ -858,14 +625,9 @@ def AP4(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_inf
         data_encoded = encode_dada(data_tau,grid)   
 
         
-        # eps_perm = eps_perm_per_tau
-        # eps_1 = eps_perm_per_tau * alpha
-
         eps_1 = eps_perm * alpha
 
         memoization = True
-
-        
 
         reports = []
             
@@ -910,27 +672,16 @@ def AP4(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_inf
 
         tr_vector.append(tr_value)
 
-        # coordenates = xmin, ymin, xmax, ymax 
-
-
-        # for i in range(len(grid)):
-        #     coord_vector.append((grid.iloc[i]['geometry'].bounds))
-
-        # grid_coordenates.append((coord_vector,count_vector))   
         est_frequency_vector.append(est_fr_vector)     
             
         grid_k.append(k) #Save the list of grids used
-                                # tr_tau.append(tr)
         lst_mse.append(mean_squared_error(real_freq, est_freq))
         lst_mae.append(mean_absolute_error(real_freq, est_freq))
 
         ### Reconstrution ###
         if grid_reconstrution:
             if tr_count:
-                # tr_value = int(n_users * tr)
                 tr_value = int(10000 * tr)
-                #print("tr_value:",tr_value)
-                #tr_value = int(n_users/k) # looking for uniformity
             else:
                 tr_value = 1 / k
             grid = split_grid(grid, est_freq, num_users, tr_value, check_norm,tr_count)
@@ -968,8 +719,6 @@ def Uniform(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data
 
     alpha = 1/tau
 
-    # eps_perm_per_tau = eps_perm_base / num_points
-    
     grid_instance = Grid((x_min,y_min),(x_max,y_max),cell_size)
     
     tr_value = 1
@@ -1003,7 +752,6 @@ def Uniform(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data
 
 
     for t in range(tau): # For each data collection
-        # print("Execution of ts:",t)
         count_vector = []
         coord_vector = []
         tr_vector = []
@@ -1018,10 +766,7 @@ def Uniform(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data
         
         reports = []
         
-    
-        # eps_perm = eps_perm_per_tau
-        # eps_1 = eps_perm_per_tau * alpha
-
+       
         eps_1 = alpha * eps_perm
 
         memoization = True
@@ -1065,17 +810,11 @@ def Uniform(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data
 
         tr_vector.append(tr_value)
 
-        # coordenates = xmin, ymin, xmax, ymax 
-
-
-        # for i in range(len(grid)):
-        #     coord_vector.append((grid.iloc[i]['geometry'].bounds))
-
+    
         grid_coordenates.append((coord_vector,count_vector))   
         est_frequency_vector.append(est_fr_vector)     
         
         grid_k.append(k) #Save the list of grids used
-                                # tr_tau.append(tr)
         lst_mse.append(mean_squared_error(real_freq, est_freq))
         lst_mae.append(mean_absolute_error(real_freq, est_freq))
     
@@ -1086,41 +825,17 @@ def Uniform(protocol,results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data
 
     return results, grid_coordenates
     
-
 #####################################################################
-############################# L-GRR #################################
+#                            PROTOCOLS                              #
 #####################################################################
-
-def grr_execution(results,alpha,eps_perm,bp,w,cell_size,structure,seed,tr,check_norm,tr_count,data, data_info):
-    
-
-    for s in structure:
-        if s == "Uniform":
-            results, grid_coordenates = Uniform("LGRR",results,alpha,eps_perm,bp,w,cell_size,s,tr,data,data_info,check_norm,tr_count) 
-        if s == "AP1":
-            results, grid_coordenates = AP1("LGRR",results,alpha,eps_perm,bp,w,cell_size,s,tr,data,data_info,check_norm,tr_count)
-        if s == "AP2":
-            results, grid_coordenates = AP2("LGRR",results,alpha,eps_perm,bp,w,cell_size,s,tr,data,data_info,check_norm,tr_count)    
-        if s == "AP3":
-            results, grid_coordenates = AP3("LGRR",results,alpha,eps_perm,bp,w,cell_size,s,tr,data,data_info,check_norm,tr_count)
-        if s == "AP4":
-            results, grid_coordenates = AP4("LGRR",results,alpha,eps_perm,bp,w,cell_size,s,tr,data,data_info,check_norm,tr_count)
-        
-
-    return results, grid_coordenates, data
-#########################################################################################
-#########################################################################################
-
-
-## RAPPOR ###############################################################################
+############################ RAPPOR #################################
+#####################################################################
 
 def rappor_execution(results,seed,eps_perm,bp,w,cell_size,structure,tr, check_norm, tr_count, data, data_info,num_points,notmsub):
     
     
     if structure == "Uniform":
         results, grid_coordenates = Uniform("RAPPOR",results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_info,check_norm,tr_count,notmsub) 
-    if structure == "AP1":
-        results, grid_coordenates = AP1("RAPPOR",results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_info,check_norm,tr_count,notmsub)
     if structure == "AP2":
         results, grid_coordenates = AP2("RAPPOR",results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_info,check_norm,tr_count,notmsub)  
     if structure == "AP3":
@@ -1131,46 +846,61 @@ def rappor_execution(results,seed,eps_perm,bp,w,cell_size,structure,tr, check_no
 
     return results, grid_coordenates, data
 
-#########################################################################################
-#########################################################################################
+def rappor(seed,eps,cell_size,structure,p,data,data_info,result_dir,num_points,count):
+
+    result_dir.mkdir(parents=True, exist_ok=True)
+
+    auxiliar_data = result_dir / "auxiliar_data/"
+
+    auxiliar_data.mkdir(parents=True, exist_ok=True)
+
+    columns_name = ['seed','method','structure','budget','budget_base','budget_proportion','grid_size_base','grid_size','final_budget','est_freq','mse_t','mse_avg','mae_t','mae_avg','w','num_points']
+
+    results_partial = []
+
+    bp = 0
+    w = 1
+    results_partial,grid_coordenates, data = rappor_execution(results_partial,seed, eps,bp,w,cell_size, structure, p[6][0], p[7],p[8], data, data_info,num_points,p[17])
+    
+    csv_file_name = str(count) + "_" + str(cell_size) + "_" + str(structure) + "_bp_" +str(bp) + "_w_" + str(w) + "_seed_" + str(seed) + "_nump_"+ str(num_points) + "_RAPPOR.csv"
+    data_file_name = str(cell_size) + "_" + str(structure) + "RAPPOR_data.pkl"
+    grid_coordenates_file_name = str(cell_size) + "_" + str(structure) + "_bp_" +str(bp) + "_w_" + str(w) + "_seed_" + str(seed) + "_nump_"+ str(num_points) + "_RAPPOR_grid.pkl"
+
+    path_csv = result_dir / csv_file_name
+
+    path_data = auxiliar_data / data_file_name
+    
+    path_grid = auxiliar_data / grid_coordenates_file_name
+
+    with open(path_csv, 'w', newline='') as file:
+        writer = csv.writer(file)
+    
+        # Write the column names
+        writer.writerow(columns_name)
+        
+        # Write the data
+        writer.writerows(results_partial)
+
+    with open(path_data, 'wb') as f:
+        pickle.dump(data, f)
 
 
-## RAPPOR ###############################################################################
+
+####################################################################
+########################### LOSUE# #################################
+####################################################################
 
 def losue_execution(results,seed,eps_perm,bp,w,cell_size,structure,tr,check_norm,tr_count, data, data_info,num_points,notmsub):
         
     
     if structure == "Uniform":
         results, grid_coordenates = Uniform("LOSUE",results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_info,num_points,check_norm,tr_count,notmsub) 
-    if structure == "AP1":
-        results, grid_coordenates = AP1("LOSUE",results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_info,num_points,check_norm,tr_count,notmsub)
     if structure == "AP2":
         results, grid_coordenates = AP2("LOSUE",results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_info,num_points,check_norm,tr_count,notmsub)    
     if structure == "AP3":
         results, grid_coordenates = AP3("LOSUE",results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_info,num_points,check_norm,tr_count,notmsub)    
     if structure == "AP4":
         results, grid_coordenates = AP4("LOSUE",results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_info,num_points,check_norm,tr_count,notmsub)  
-
-
-    
-    return results, grid_coordenates, data
-
-
-## LOLOHA ###############################################################################
-
-def loloha_execution(results,seed,eps_perm,bp,w,cell_size,structure,tr,check_norm,tr_count, data, data_info,num_points,notmsub):
-        
-    
-    if structure == "Uniform":
-        results, grid_coordenates = Uniform("LOLOHA",results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_info,num_points,check_norm,tr_count,notmsub) 
-    if structure == "AP1":
-        results, grid_coordenates = AP1("LOLOHA",results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_info,num_points,check_norm,tr_count,notmsub)
-    if structure == "AP2":
-        results, grid_coordenates = AP2("LOLOHA",results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_info,num_points,check_norm,tr_count,notmsub)    
-    if structure == "AP3":
-        results, grid_coordenates = AP3("LOLOHA",results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_info,num_points,check_norm,tr_count,notmsub)    
-    if structure == "AP4":
-        results, grid_coordenates = AP4("LOLOHA",results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_info,num_points,check_norm,tr_count,notmsub)  
 
 
     
@@ -1214,68 +944,30 @@ def losue(seed,eps,cell_size,structure,p,data,data_info,result_dir,num_points,bp
     with open(path_data, 'wb') as f:
         pickle.dump(data, f)
 
-    # with open(path_grid, 'wb') as f:
-    #     pickle.dump(grid_coordenates, f)
 
-    
-def rappor(seed,eps,cell_size,structure,p,data,data_info,result_dir,num_points,count):
+####################################################################
+########################### LOLOHA##################################
+####################################################################
 
-    result_dir.mkdir(parents=True, exist_ok=True)
-
-    auxiliar_data = result_dir / "auxiliar_data/"
-
-    auxiliar_data.mkdir(parents=True, exist_ok=True)
-
-    columns_name = ['seed','method','structure','budget','budget_base','budget_proportion','grid_size_base','grid_size','final_budget','est_freq','mse_t','mse_avg','mae_t','mae_avg','w','num_points']
-
-    results_partial = []
-
-    bp = 0
-    w = 1
-    results_partial,grid_coordenates, data = rappor_execution(results_partial,seed, eps,bp,w,cell_size, structure, p[6][0], p[7],p[8], data, data_info,num_points,p[17])
-    # else:
-        #     if structure == "AP1": # w=1, use bp
-        #         for bp in p[2]:
-        #             w = 1
-        #             results_partial,grid_coordenates, data = rappor_execution(results_partial, p[0], eps_perm,bp,w,cell_size, structure, p[6][0], p[7], p[8],data,data_info)
-        #             progress_bar2.update(1)
-        #     if structure == "AP2": # use w and bp
-        #         for bp in p[2]:
-        #             for w in p[13]:
-        #                 results_partial,grid_coordenates, data = rappor_execution(results_partial, p[0], eps_perm,bp,w,cell_size, structure, p[6][0], p[7], p[8],data,data_info)
-        #                 progress_bar2.update(1)
-        #     else: #use w and does not use bp
-        #         bp = 0
-        #         for w in p[13]:
-        #             results_partial,grid_coordenates, data = rappor_execution(results_partial, p[0], eps_perm,bp,w,cell_size, structure, p[6][0], p[7], p[8],data,data_info)
-        #             progress_bar2.update(1)
-
-    csv_file_name = str(count) + "_" + str(cell_size) + "_" + str(structure) + "_bp_" +str(bp) + "_w_" + str(w) + "_seed_" + str(seed) + "_nump_"+ str(num_points) + "_RAPPOR.csv"
-    data_file_name = str(cell_size) + "_" + str(structure) + "RAPPOR_data.pkl"
-    grid_coordenates_file_name = str(cell_size) + "_" + str(structure) + "_bp_" +str(bp) + "_w_" + str(w) + "_seed_" + str(seed) + "_nump_"+ str(num_points) + "_RAPPOR_grid.pkl"
-
-    path_csv = result_dir / csv_file_name
-
-    path_data = auxiliar_data / data_file_name
-    
-    path_grid = auxiliar_data / grid_coordenates_file_name
-
-    with open(path_csv, 'w', newline='') as file:
-        writer = csv.writer(file)
-    
-        # Write the column names
-        writer.writerow(columns_name)
+def loloha_execution(results,seed,eps_perm,bp,w,cell_size,structure,tr,check_norm,tr_count, data, data_info,num_points,notmsub):
         
-        # Write the data
-        writer.writerows(results_partial)
+    
+    if structure == "Uniform":
+        results, grid_coordenates = Uniform("LOLOHA",results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_info,num_points,check_norm,tr_count,notmsub) 
+    if structure == "AP1":
+        results, grid_coordenates = AP1("LOLOHA",results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_info,num_points,check_norm,tr_count,notmsub)
+    if structure == "AP2":
+        results, grid_coordenates = AP2("LOLOHA",results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_info,num_points,check_norm,tr_count,notmsub)    
+    if structure == "AP3":
+        results, grid_coordenates = AP3("LOLOHA",results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_info,num_points,check_norm,tr_count,notmsub)    
+    if structure == "AP4":
+        results, grid_coordenates = AP4("LOLOHA",results,seed,eps_perm,bp,w,cell_size,structure,tr,data,data_info,num_points,check_norm,tr_count,notmsub)  
 
-    with open(path_data, 'wb') as f:
-        pickle.dump(data, f)
 
-    # with open(path_grid, 'wb') as f:
-    #     pickle.dump(grid_coordenates, f)
-        
+    
+    return results, grid_coordenates, data
 
+    
 def loloha(seed,eps,cell_size,structure,p,data,data_info,result_dir,num_points,count):
 
     result_dir.mkdir(parents=True, exist_ok=True)
@@ -1291,22 +983,6 @@ def loloha(seed,eps,cell_size,structure,p,data,data_info,result_dir,num_points,c
     bp = 0
     w = 1
     results_partial,grid_coordenates, data = loloha_execution(results_partial,seed, eps,bp,w,cell_size, structure, p[6][0], p[7],p[8], data, data_info,num_points,p[17])
-        # else:
-        #     if structure == "AP1": # w=1, use bp
-        #         for bp in p[2]:
-        #             w = 1
-        #             results_partial,grid_coordenates, data = loloha_execution(results_partial, p[0], eps_perm,bp,w,cell_size, structure, p[6][0], p[7], p[8],data,data_info)
-        #             progress_bar2.update(1)
-        #     if structure == "AP2": # use w and bp
-        #         for bp in p[2]:
-        #             for w in p[13]:
-        #                 results_partial,grid_coordenates, data = loloha_execution(results_partial, p[0], eps_perm,bp,w,cell_size, structure, p[6][0], p[7], p[8],data,data_info)
-        #                 progress_bar2.update(1)
-        #     else: #use w and does not use bp
-        #         bp = 0
-        #         for w in p[13]:
-        #             results_partial,grid_coordenates, data = loloha_execution(results_partial, p[0], eps_perm,bp,w,cell_size, structure, p[6][0], p[7], p[8],data,data_info)
-        #             progress_bar2.update(1)
 
     csv_file_name = str(count) + "_" + str(cell_size) + "_" + str(structure) + "_bp_" +str(bp) + "_w_" + str(w) + "_seed_" + str(seed) + "_nump_"+ str(num_points) + "_LOLOHA.csv"
     data_file_name = str(cell_size) + "_" + str(structure) + "LOLOHA_data.pkl"
@@ -1330,11 +1006,7 @@ def loloha(seed,eps,cell_size,structure,p,data,data_info,result_dir,num_points,c
     with open(path_data, 'wb') as f:
         pickle.dump(data, f)
 
-    # with open(path_grid, 'wb') as f:
-    #     pickle.dump(grid_coordenates, f)
 
-#########################################################################################
-#########################################################################################
 #########################################################################################
 ######################## Load Parameters ################################################
 #########################################################################################
@@ -1360,14 +1032,12 @@ def get_parameters(experiment):
     p.append([float(x) for x in experiment['e_prop']]) # budget_proportion - p[2]
     p.append([int(x) for x in experiment['g']]) # cell_size - p[3]
     p.append(["Uniform","AP2","AP3","AP4"]) # structure - p[4]
-    # p.append(["AP1"])
     p.append(1) # nb_seed - p[5]
     p.append([0.01]) # fr - p[6]
     p.append(True) # check_norm - p[7]
     p.append(True) # tr_count - p[8]
     p.append(None) # data_set_type - p[9]
     p.append(None) # data_set_distribution - p[10]
-    #p.append(Path().resolve()/ "Dataset/Geolife_Trajectories_Dataset/Taxi/geolife_cartesian_bounded_20_10s.pkl") #p[11]
     p.append(Path().resolve()/ "Dataset/Taxi_Porto_KAGGLE/new_taxi_portugal_10000_20.pkl")
     p.append(experiment['folder'][0]) #p[12]
     p.append([int(x) for x in experiment['w']]) #p[13]
@@ -1377,7 +1047,6 @@ def get_parameters(experiment):
     p.append(False) # normsub - p[17]
     
     return p    
-
 
 
 def generate_data(data_type,speed,num_users,num_points,file_path,file_info,syntetic_path):
@@ -1390,11 +1059,9 @@ def generate_data(data_type,speed,num_users,num_points,file_path,file_info,synte
 
     # to load syntetic data from file
     if data_type == "l":
-        #need fix to get information hardcoded in the generation
 
         with open(file_path, 'rb') as f:
             data = pickle.load(f)
-            # x_min, y_min, x_max, y_max, num_points, n_users  = get_data_boundaries(data)
             print("Sucefully loaded user_data with len:",len(data))
 
         with open(file_info, mode='r') as file:
@@ -1409,12 +1076,6 @@ def generate_data(data_type,speed,num_users,num_points,file_path,file_info,synte
         #loading pre_saved syntetic data
         data, x_min, y_min, x_max, y_max = load_data(syntetic_path)
         data = data[:num_users]
-
-        #generating a new syntetic data
-        # if data_type == 'u':
-        #     data, x_min, y_min, x_max, y_max = gen_execution_data('s','u',syntetic_path,ti,num_points,num_users,speed)
-        # else:
-        #     data, x_min, y_min, x_max, y_max = gen_execution_data('s','n',syntetic_path,ti,num_points,num_users,speed)
     
        
         with open(file_path, 'wb') as f:
@@ -1437,32 +1098,26 @@ def generate_data(data_type,speed,num_users,num_points,file_path,file_info,synte
 
 
 def continue_execution(folder,execution_list):
-    # Caminho da pasta onde os arquivos estão localizados
-    
-    # Lista para armazenar os números extraídos
+    # to recover the execution if break
+
     numeros_extraidos = []
 
-    # Itera pelos arquivos na pasta
     for arquivo in os.listdir(folder):
-        if arquivo.endswith(".csv"):  # Verifica se é um arquivo CSV
+        if arquivo.endswith(".csv"):  
             try:
-                # Extrai o número antes do primeiro _
                 numero = int(arquivo.split('_')[0])
                 numeros_extraidos.append(numero)
             except ValueError:
-                pass  # Ignora arquivos que não seguem o padrão
+                pass  
 
     numeros_extraidos = sorted(numeros_extraidos)
 
     
-    # Crie a lista de índices que devem ser mantidos (os ausentes)
     new_list = [execution_list[i] for i in range(len(execution_list)) if i not in numeros_extraidos]
     
     return new_list
 
 
-
-# Função auxiliar para executar cada função com seus argumentos
 def executar_task(task):
     func, args = task
     return func(*args)
@@ -1473,7 +1128,6 @@ def process_sample(experiment,result_dir,data, x_min, y_min, x_max, y_max):
 
     ##### PARAMETERS SETUP #####
     
-    # results_partial = pd.DataFrame(columns=['budget','budget_proportion','budget_base','cell_size','method','mse','mae','structure','seed','sample','grid_size','num_users','tr'])
     p = get_parameters(experiment)
 
     print("alpha:",p[0])
@@ -1535,10 +1189,7 @@ def process_sample(experiment,result_dir,data, x_min, y_min, x_max, y_max):
     for num_points in p[15]:
         
         data_info = (x_min, y_min, x_max, y_max, num_points, n_users)
-        # Use list comprehension to truncate each inner list to the first `n` elements
         new_data = [inner_list[:num_points] for inner_list in data]
-        # x_min, y_min, x_max, y_max, num_points, n_users  = get_data_boundaries(new_data)
-        # data_info = (x_min, y_min, x_max, y_max, num_points, n_users)
             
     
         for seed in range(p[5]):
@@ -1551,19 +1202,14 @@ def process_sample(experiment,result_dir,data, x_min, y_min, x_max, y_max):
                                     tasks.append((losue, (seed,e, c, s, p, new_data, data_info, result_dir,num_points,0,1,count)))
                                     count += 1
                                 else:
-                                    if s == "AP1":
-                                        for bp in p[2]:
-                                            tasks.append((losue, (seed,e, c, s, p, new_data, data_info, result_dir,num_points,bp,1,count)))
+                                    for w in p[13]:
+                                        if s=='AP2':
+                                            for bp in p[2]:
+                                                tasks.append((losue, (seed,e, c, s, p, new_data, data_info, result_dir,num_points,bp,w,count)))
+                                                count += 1    
+                                        else:
+                                            tasks.append((losue, (seed,e, c, s, p, new_data, data_info, result_dir,num_points,0,w,count)))
                                             count += 1
-                                    else:
-                                        for w in p[13]:
-                                            if s=='AP2':
-                                                for bp in p[2]:
-                                                    tasks.append((losue, (seed,e, c, s, p, new_data, data_info, result_dir,num_points,bp,w,count)))
-                                                    count += 1    
-                                            else:
-                                                tasks.append((losue, (seed,e, c, s, p, new_data, data_info, result_dir,num_points,0,w,count)))
-                                                count += 1
                             else:
                                 if m == "LOLOHA" and s == "Uniform":
                                     tasks.append((loloha, (seed,e, c, s, p, new_data, data_info, result_dir,num_points,count)))
@@ -1583,7 +1229,6 @@ def process_sample(experiment,result_dir,data, x_min, y_min, x_max, y_max):
     
     with Pool(processes=(max_processes-1)) as pool:
         
-        #list(tqdm(pool.map(executar_task, tasks), total=len(tasks), desc="Executando tasks"))
         for _ in tqdm(pool.imap_unordered(executar_task, tasks), total=len(tasks), desc="Executando tasks"):
             pass
 
@@ -1601,10 +1246,8 @@ def main():
     # Access the argument (filename in this case)
     filename = sys.argv[1]
 
-    # Print or process the file name
     print(f"Received file name: {filename}")
     
-    # Example: Open and read the file
     try:
         with open(filename, 'r') as file:
             content = file.read()
@@ -1615,32 +1258,20 @@ def main():
         sys.exit(1)
 
 
-    # print("####Starting####")
-    exp_starttime = time.time()
-
     experiments = []
-
-    # with open('testes_profile_exp12_simple_porto.txt', 'r') as file:
-    #     for line in file:
-    #         # print(line)
-    #         parameters = parse_parameters(line)
-    #         experiments.append(parameters)
 
     with open(filename, 'r') as file:
         for line in file:
-            # print(line)
             parameters = parse_parameters(line)
             experiments.append(parameters)
     
 
     result_dir = Path().resolve() / "Results" / experiments[1]['name'][0] / str(datetime.date.today())
-    # result_dir = Path().resolve() / "Results" / experiments[1]['name'][0] / '2025-01-07'
-
+    
     file_path = result_dir / "data.pkl"
     file_info = result_dir / "data_info.csv"
 
-    # print(result_dir)
-
+    
     result_dir.mkdir(parents=True, exist_ok=True)
 
     data_type = experiments[0]['d'][0]
@@ -1662,13 +1293,6 @@ def main():
 
     data, x_min, y_min, x_max, y_max = generate_data(data_type,speed,num_users,num_points,file_path,file_info,syntetic_path)
 
-    # print(len(data))
-    # print(x_min)
-    # print(x_max)
-    # print(y_min)
-    # print(y_max)
-
-    # Print the parsed experiments
     print("Number of experiments:", int(experiments[0]['n'][0]))
     print("Number of seeds:", int(experiments[0]['s'][0]))
     print("Data Type:", data_type)
@@ -1679,12 +1303,6 @@ def main():
         print(f"Experiment {i-1}: {experiments[i]}")
         print(experiments[i]['folder'][0])
         process_sample(experiments[i],result_dir,data, x_min, y_min, x_max, y_max)
-
-
-
-    # for setup in range(len(experiments)-1):
-    #     process_sample(experiments[setup+1])
-    #     process_sample(experiments[2])
 
 
 if __name__ == "__main__":

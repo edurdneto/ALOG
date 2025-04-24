@@ -23,13 +23,10 @@ def GRR_Client(input_data, k, p):
     """
     Generalized Randomized Response (GRR) protocol
     """
-    #print("p:",p)
-    # Mapping domain size k to the range [0, ..., k-1]
     domain = np.arange(k) 
 
     # GRR perturbation function
     rnd = np.random.random()
-    #print("rnd:",rnd,"p:",p,"input_data:",input_data)
     if rnd <= p:
         return input_data
 
@@ -58,105 +55,22 @@ def UE_Client(input_ue_data, k, p, q):
                 sanitized_vec[ind] = 1
     return sanitized_vec
 
-
-# def norm_sub(est_freq, p, q):
-#     res = np.copy(est_freq)
-#     n = 1
-
-#     while (np.fabs(sum(res) - n) > 1) or (res < 0).any():
-#         res[res < 0] = 0
-#         total = sum(res)
-#         mask = res > 0
-#         diff = (n - total) / sum(mask)
-#         res[mask] += diff
-
-#     return res
-
 def norm_sub(est_freq, p, q):
-    """
-    Aplica o pós-processamento NormSub para ajustar as frequências estimadas.
 
-    Parâmetros:
-        est_freq (numpy array): Frequências estimadas (vetor perturbado).
-        p (float): Probabilidade de manter o bit 1, dado que o bit original é 1.
-        q (float): Probabilidade de alterar o bit 0 para 1.
-    
-    Retorno:
-        est_freq_adjusted (numpy array): Frequências ajustadas após o NormSub.
-    """
-    # Número total de relatórios estimados
     n_total = np.sum(est_freq)
 
-    # Subtrair o ruído esperado
     noise_expected = n_total * q
     est_freq_adjusted = est_freq - noise_expected
 
-    # Normalizar para garantir que a soma seja consistente com os dados
     est_freq_adjusted = est_freq_adjusted / (p - q)
 
-    # Corrigir valores negativos
     est_freq_adjusted = np.clip(est_freq_adjusted, 0, None)
 
-    # Renormalizar para garantir que a soma seja consistente com o total
     est_freq_adjusted = est_freq_adjusted / np.sum(est_freq_adjusted) * n_total
 
     return est_freq_adjusted
 
-# Ours: LOLOHA
-def LOLOHA_Client(input_sequence, k, eps_perm, eps_1, alpha, optimal=True):
-    
-    # BiLOLOHA parameter
-    g = 2
-    
-    if optimal:
-        # Optimal LH (OLOLOHA) parameter
-        g = int(max(np.rint((np.sqrt(np.exp(4*eps_perm) - 14*np.exp(2*eps_perm) - 12*np.exp(2*eps_perm*(alpha+1)) + 12*np.exp(eps_perm*(alpha+1)) + 12*np.exp(eps_perm*(alpha+3)) + 1) - np.exp(2*eps_perm) + 6*np.exp(eps_perm) - 6*np.exp(eps_perm*alpha) + 1) / (6*(np.exp(eps_perm) - np.exp(eps_perm*alpha)))), 2))
-    
-    # GRR parameters for round 1
-    p1_llh = np.exp(eps_perm) / (np.exp(eps_perm) + g - 1)
-    q1_llh = (1 - p1_llh) / (g-1)
-    
-    # GRR parameters for round 2
-    p2_llh = (q1_llh - np.exp(eps_1) * p1_llh) / ((-p1_llh * np.exp(eps_1)) + g*q1_llh*np.exp(eps_1) - q1_llh*np.exp(eps_1) - p1_llh*(g-1)+q1_llh)
-    q2_llh = (1 - p2_llh) / (g-1)
-    
-    # Cache for memoized values
-    lst_memoized = {val:None for val in range(g)}
-    
-    # Random 'hash function', i.e., a seed to use xxhash package
-    rnd_seed = np.random.randint(0, maxsize, dtype=np.int64)
-    
-    # List of sanitized reports throughout \tau data collections
-    sanitized_reports = []
-    for input_data in input_sequence:
-        
-        # Hash the user's value
-        hashed_input_data = (xxhash.xxh32(str(input_data), seed=rnd_seed).intdigest() % g)
-        
-        if lst_memoized[hashed_input_data] is None: # If hashed value not memoized
-        
-            # Memoization
-            first_sanitization = GRR_Client(hashed_input_data, g, p1_llh)
-            lst_memoized[hashed_input_data] = first_sanitization
-        
-        else: # Use already memoized hashed value
-            first_sanitization = lst_memoized[hashed_input_data]
-        
-        sanitized_reports.append((GRR_Client(first_sanitization, g, p2_llh), rnd_seed))
-    
-    # Number of hash value changes, i.e, of privacy budget consumption
-    final_budget = sum([val is not None for val in lst_memoized.values()])
-    
-    return sanitized_reports, final_budget,g
-
 def LOLOHA_Client_TAU(ts_value, g, eps_perm, eps_1,memo_vector, memoization):
-    
-    # # BiLOLOHA parameter
-    # g = 2
-    
-    # if optimal:
-    #     # Optimal LH (OLOLOHA) parameter
-    #     g = int(max(np.rint((np.sqrt(np.exp(4*eps_perm) - 14*np.exp(2*eps_perm) - 12*np.exp(2*eps_perm*(alpha+1)) + 12*np.exp(eps_perm*(alpha+1)) + 12*np.exp(eps_perm*(alpha+3)) + 1) - np.exp(2*eps_perm) + 6*np.exp(eps_perm) - 6*np.exp(eps_perm*alpha) + 1) / (6*(np.exp(eps_perm) - np.exp(eps_perm*alpha)))), 2))
     
     # GRR parameters for round 1
     p1_llh = np.exp(eps_perm) / (np.exp(eps_perm) + g - 1)
@@ -189,50 +103,6 @@ def LOLOHA_Client_TAU(ts_value, g, eps_perm, eps_1,memo_vector, memoization):
     sanitized_report = (GRR_Client(first_sanitization, g, p2_llh), rnd_seed)
     
     return sanitized_report, memo_vector, budget_used
-
-def LOLOHA_Aggregator(reports, k, eps_perm, eps_1, alpha, optimal=True,norm_sub=True):    
-        
-    # Number of reports
-    n = len(reports)
-    
-    # BiLOLOHA parameter
-    g = 2
-    
-    if optimal:
-    
-        # Optimal LH (OLOLOHA) parameter
-        g = max(np.rint((np.sqrt(np.exp(4*eps_perm) - 14*np.exp(2*eps_perm) - 12*np.exp(2*eps_perm*(alpha+1)) + 12*np.exp(eps_perm*(alpha+1)) + 12*np.exp(eps_perm*(alpha+3)) + 1) - np.exp(2*eps_perm) + 6*np.exp(eps_perm) - 6*np.exp(eps_perm*alpha) + 1) / (6*(np.exp(eps_perm) - np.exp(eps_perm*alpha)))), 2)
-
-    # GRR parameters for round 1
-    p1 = np.exp(eps_perm) / (np.exp(eps_perm) + g - 1)
-    q1 = (1 - p1) / (g-1)
-
-    # GRR parameters for round 2
-    p2 = (q1 - np.exp(eps_1) * p1) / ((-p1 * np.exp(eps_1)) + g*q1*np.exp(eps_1) - q1*np.exp(eps_1) - p1*(g-1)+q1)
-    q2 = (1 - p2) / (g-1)
-    
-    # Count how many times each value has been reported
-    q1 = 1 / g #updating q1 in the server        
-    count_report = np.zeros(k)
-    for tuple_val_seed in reports:
-        usr_val = tuple_val_seed[0] # user's sanitized value
-        usr_seed = tuple_val_seed[1] # user's 'hash function'
-        for v in range(k):
-            if usr_val == (xxhash.xxh32(str(v), seed=usr_seed).intdigest() % g):
-                count_report[v] += 1
-    
-    # Ensure non-negativity of estimated frequency
-    est_freq = ((count_report - n * q1 * (p2 - q2) - n * q2) / (n * (p1 - q1) * (p2 - q2)))
-    # est_freq = ((count_report - n * q1 * (p2 - q2) - n * q2) / (n * (p1 - q1) * (p2 - q2))).clip(0)
-
-    est_freq = norm_sub(est_freq,p2,q2)
-
-    # Re-normalized estimated frequency
-    # norm_est_freq = np.nan_to_num(est_freq / sum(est_freq))
-    est_freq = np.nan_to_num(est_freq)
-
-    # return norm_est_freq
-    return est_freq
 
 def LOLOHA_Aggregator_TAU(reports, k, eps_perm, eps_1, g,nsub=True):    
         
@@ -267,64 +137,11 @@ def LOLOHA_Aggregator_TAU(reports, k, eps_perm, eps_1, g,nsub=True):
     else:
         # Ensure non-negativity of estimated frequency
         est_freq = ((count_report - n * q1 * (p2 - q2) - n * q2) / (n * (p1 - q1) * (p2 - q2)))
-        # est_freq = ((count_report - n * q1 * (p2 - q2) - n * q2) / (n * (p1 - q1) * (p2 - q2))).clip(0)
-
-        
-        # Re-normalized estimated frequency
+       
         est_freq = np.nan_to_num(est_freq / sum(est_freq))
-        # est_freq = np.nan_to_num(est_freq)
 
-    # return norm_est_freq
     return est_freq
 
-# Competitor: RAPPOR [1]
-def RAPPOR_Client(input_sequence, k, eps_perm, eps_1):
-    # The analytical analysis of how to calculate parameters (p1, q2, p2, q2) is from [2]
-    
-    # Sue parameters for round 1
-    p1 = np.exp(eps_perm / 2) / (np.exp(eps_perm / 2) + 1)
-    q1 = 1 - p1
-
-    # SUE parameters for round 2
-    p2 = - (np.sqrt((4 * np.exp(7 * eps_perm / 2) - 4 * np.exp(5 * eps_perm / 2) - 4 * np.exp(
-        3 * eps_perm / 2) + 4 * np.exp(eps_perm / 2) + np.exp(4 * eps_perm) + 4 * np.exp(3 * eps_perm) - 10 * np.exp(
-        2 * eps_perm) + 4 * np.exp(eps_perm) + 1) * np.exp(eps_1)) * (np.exp(eps_1) - 1) * (
-                        np.exp(eps_perm) - 1) ** 2 - (
-                        np.exp(eps_1) - np.exp(2 * eps_perm) + 2 * np.exp(eps_perm) - 2 * np.exp(
-                    eps_1 + eps_perm) + np.exp(eps_1 + 2 * eps_perm) - 1) * (
-                        np.exp(3 * eps_perm / 2) - np.exp(eps_perm / 2) + np.exp(eps_perm) - np.exp(
-                    eps_1 + eps_perm / 2) - np.exp(eps_1 + eps_perm) + np.exp(eps_1 + 3 * eps_perm / 2) + np.exp(
-                    eps_1 + 2 * eps_perm) - 1)) / ((np.exp(eps_1) - 1) * (np.exp(eps_perm) - 1) ** 2 * (
-                np.exp(eps_1) - np.exp(2 * eps_perm) + 2 * np.exp(eps_perm) - 2 * np.exp(eps_1 + eps_perm) + np.exp(
-            eps_1 + 2 * eps_perm) - 1))
-    q2 = 1 - p2
-
-    # Cache for memoized values
-    lst_memoized = {val:None for val in range(k)}
-    
-    # List of sanitized reports throughout \tau data collections
-    sanitized_reports = []
-    for input_data in input_sequence:
-        
-        # Unary encoding
-        input_ue_data = np.zeros(k)
-        input_ue_data[input_data] = 1
-        
-        if lst_memoized[input_data] is None: # If hashed value not memoized
-
-            # Memoization
-            first_sanitization = UE_Client(input_ue_data, k, p1, q1)
-            lst_memoized[input_data] = first_sanitization
-
-        else: # Use already memoized hashed value
-            first_sanitization = lst_memoized[input_data]
-        
-        sanitized_reports.append(UE_Client(first_sanitization, k, p2, q2))
-    
-    # Number of data value changes, i.e, of privacy budget consumption
-    final_budget = sum([val is not None for val in lst_memoized.values()])
-
-    return sanitized_reports, final_budget
 
 def RAPPOR_Client_TAU(ts_value, k, eps_perm, eps_1,memo_vector, memoization):
     # The analytical analysis of how to calculate parameters (p1, q2, p2, q2) is from [2]
@@ -404,56 +221,12 @@ def RAPPOR_Aggregator(ue_reports, eps_perm, eps_1,nsub=True):
         # Ensure non-negativity of estimated frequency
         est_freq = ((sum(ue_reports) - n * q1 * (p2 - q2) - n * q2) / (n * (p1 - q1) * (p2 - q2))).clip(0)
 
-        # est_freq = norm_sub(est_freq)
-
-        # Re-normalized estimated frequencies
         est_freq = np.nan_to_num(est_freq/sum(est_freq))
-        # est_freq = np.nan_to_num(est_freq)
         
-    # return norm_est_freq
     return est_freq
 
-# Competitor: L-OSUE [2]
-def L_OSUE_Client(input_sequence, k, eps_perm, eps_1):
-    # The analytical analysis of how to calculate parameters (p1, q2, p2, q2) is from [2]
-    
-    # OUE parameters for round 1
-    p1 = 1 / 2
-    q1 = 1 / (np.exp(eps_perm) + 1)
-
-    # SUE parameters for round 2
-    p2 = (1 - np.exp(eps_1 + eps_perm)) / (np.exp(eps_1) - np.exp(eps_perm) - np.exp(eps_1 + eps_perm) + 1)
-    q2 = 1 - p2
-
-    # Cache for memoized values
-    lst_memoized = {val:None for val in range(k)}
-    
-    # List of sanitized reports throughout \tau data collections
-    sanitized_reports = []
-    for input_data in input_sequence:
-        
-        # Unary encoding
-        input_ue_data = np.zeros(k)
-        input_ue_data[input_data] = 1
-        
-        if lst_memoized[input_data] is None: # If hashed value not memoized
-
-            # Memoization
-            first_sanitization = UE_Client(input_ue_data, k, p1, q1)
-            lst_memoized[input_data] = first_sanitization
-
-        else: # Use already memoized hashed value
-            first_sanitization = lst_memoized[input_data]
-        
-        sanitized_reports.append(UE_Client(first_sanitization, k, p2, q2))
-    
-    # Number of data value changes, i.e, of privacy budget consumption
-    final_budget = sum([val is not None for val in lst_memoized.values()])
-
-    return sanitized_reports, final_budget
 
 def L_OSUE_Client_TAU(ts_value, k, eps_perm, eps_1,memo_vector, memoization):
-     # The analytical analysis of how to calculate parameters (p1, q2, p2, q2) is from [2]
     
     # OUE parameters for round 1
     p1 = 1 / 2
@@ -463,9 +236,6 @@ def L_OSUE_Client_TAU(ts_value, k, eps_perm, eps_1,memo_vector, memoization):
     p2 = (1 - np.exp(eps_1 + eps_perm)) / (np.exp(eps_1) - np.exp(eps_perm) - np.exp(eps_1 + eps_perm) + 1)
     q2 = 1 - p2
 
-    # # Cache for memoized values
-    # lst_memoized = {val:None for val in range(k)}
-    
     
     # Unary encoding
     input_ue_data = np.zeros(k)
@@ -512,10 +282,8 @@ def L_OSUE_Aggregator(ue_reports, eps_perm, eps_1,nsub=True):
     else:
     
         # Ensure non-negativity of estimated frequency
-        # est_freq = ((sum(ue_reports) - n * q1 * (p2 - q2) - n * q2) / (n * (p1 - q1) * (p2 - q2)))
         est_freq = ((sum(ue_reports) - n * q1 * (p2 - q2) - n * q2) / (n * (p1 - q1) * (p2 - q2))).clip(0)
 
-        # Re-normalized estimated frequency
         est_freq = np.nan_to_num(est_freq / sum(est_freq))
         
     return est_freq
@@ -528,8 +296,6 @@ def L_GRR_Client_TAU(ts_value, k, eps_perm, eps_1, memo_vector, memoization):
     q1 = (1 - p1) / (k - 1)
 
     # GRR parameters for round 2
-    # p2 = (q1 - np.exp(eps_1) * p1) / ((-p1 * np.exp(eps_1)) + k*q1*np.exp(eps_1) - q1*np.exp(eps_1) - p1*(k-1)+q1)
-    # Modificação de acordo com o artigo original do L-GRR
     p2 = (np.exp(eps_1+eps_perm) - 1) / (-k*np.exp(eps_1)+(k-1)*np.exp(eps_perm)+np.exp(eps_1)+np.exp(eps_1+eps_perm)-1)
     
     q2 = (1 - p2) / (k-1)
@@ -564,8 +330,6 @@ def L_GRR_Client(input_sequence, k, eps_perm, eps_1):
     q1 = (1 - p1) / (k - 1)
 
     # GRR parameters for round 2
-    # p2 = (q1 - np.exp(eps_1) * p1) / ((-p1 * np.exp(eps_1)) + k*q1*np.exp(eps_1) - q1*np.exp(eps_1) - p1*(k-1)+q1)
-    # Modificação de acordo com o artigo original do L-GRR
     p2 = (np.exp(eps_1+eps_perm) - 1) / (-k*np.exp(eps_1)+(k-1)*np.exp(eps_perm)+np.exp(eps_1)+np.exp(eps_1+eps_perm)-1)
     
     q2 = (1 - p2) / (k-1)
@@ -605,9 +369,6 @@ def L_GRR_Aggregator(reports, k, eps_perm, eps_1):
 
     # GRR parameters for round 2
     p2 = (q1 - np.exp(eps_1) * p1) / ((-p1 * np.exp(eps_1)) + k*q1*np.exp(eps_1) - q1*np.exp(eps_1) - p1*(k-1)+q1)
-    # Modificação de acordo com o artigo original do L-GRR
-    # Depois testar novamente essa modificação. O E1 é sim o alpha * eps_perm, tem no artigo improve ...
-    # p2 = (np.exp(eps_1+eps_perm) - 1) / (-k*np.exp(eps_1)+(k-1)*np.exp(eps_perm)+np.exp(eps_1)+np.exp(eps_1+eps_perm)-1)
     q2 = (1 - p2) / (k-1)
 
     # Count how many times each value has been reported
@@ -619,9 +380,8 @@ def L_GRR_Aggregator(reports, k, eps_perm, eps_1):
     est_freq = ((count_report - n*q1*(p2-q2) - n*q2) / (n*(p1-q1)*(p2-q2))).clip(0)
 
     # Re-normalized estimated frequency
-    norm_est_freq = np.nan_to_num(est_freq / sum(est_freq))
+    est_freq = np.nan_to_num(est_freq / sum(est_freq))
 
-    # return norm_est_freq
     return est_freq
 
 # Competitor: dBitFlipPM [3]

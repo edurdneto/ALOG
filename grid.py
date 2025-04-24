@@ -37,7 +37,6 @@ class Grid:
 
         # Create a GeoDataFrame from the grid polygons
         self.grid = gpd.GeoDataFrame({'geometry': grid_polygons})
-        #print(type(self.grid.index))
         self.grid['label'] = self.grid.index.map(lambda x: [x])
 
         # Create a dictionary to store the neighbors of each cell
@@ -48,12 +47,8 @@ class Grid:
         self.syntetic = True
         # create a syntetic grid considering a cartesian plan from self.tl to self.br considering the granularity as the distance between the points
         # Calculate the number of rows and columns
-        # num_rows = int((self.br[0] - self.tl[0]) / self.g)
-        # num_cols = int((self.br[1] - self.tl[1]) / self.g)
         num_rows = int(np.ceil((self.br[1] - self.tl[1]) / self.g))
         num_cols = int(np.ceil((self.br[0] - self.tl[0]) / self.g))
-
-        # print(num_cols, num_rows)
 
         # Generate grid polygons
         grid_polygons = []
@@ -68,22 +63,15 @@ class Grid:
                 x3 = x0
                 y3 = y0 + self.g
             
-            # Cria o polígono com os vértices calculados
                 polygon = Polygon([(x0, y0), (x1, y1), (x2, y2), (x3, y3)])
                 grid_polygons.append(polygon)
 
-        # print("poligon:",grid_polygons[len(grid_polygons)-1])
-        # Create a GeoDataFrame from the grid polygons
         self.grid = gpd.GeoDataFrame({'geometry': grid_polygons})
-        #print(type(self.grid.index))
         self.grid['label'] = self.grid.index.map(lambda x: [x])
         endtime = time.time()
-        # print("Time to create syntetic grid:",endtime - starttime)
-
+       
     def convert_grid_list(self,grid_list):
-        #grid list tem o formato de uma lista onde cada elemento será uma célula
-        #formato: [(0.0, 0.0, 1000.0, 1000.0), [0], 99.99999999999997], onde o primeiro elemento é o polígono, contendo os bounds x_min,y_min,x_max,y_max, o segundo é o label e o terceiro é o count.
-
+       
         grid_polygons = []
         for point in grid_list:
             polygon = Polygon([(point[0][0], point[0][1]), (point[0][2], point[0][1]), (point[0][2], point[0][3]), (point[0][0], point[0][3])])
@@ -153,7 +141,4 @@ class Grid:
 
             neighbors[i] = neighbor_indices
 
-        # Add the 'neighbor' field to the GeoDataFrame
         self.grid['neighbor'] = neighbors.values()
-        # Transformar a coluna 'neighbor' em uma coluna de strings JSON
-        #self.grid['neighbor'] = self.grid['neighbor'].apply(lambda x: json.dumps(x))
