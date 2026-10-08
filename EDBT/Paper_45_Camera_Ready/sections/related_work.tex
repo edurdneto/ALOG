@@ -1,0 +1,119 @@
+\section{Related Work}
+\label{sec:related_work}
+
+Centralized models for estimating individual frequencies in geospatial areas typically use grids to partition space for location discretization \cite{DBLP:conf/icde/QardajiYL13,wei2019differential,yan2022achieving}. Qardaji et al.  \cite{DBLP:conf/icde/QardajiYL13} address the problem of constructing a differentially private synopsis for two-dimensional datasets, such as geospatial datasets. They highlight that a key challenge is balancing noise error and non-uniformity error in partition-based synopsis methods and study the uniform-grid approach. The authors propose a method for choosing the grid size. They also introduce an adaptive-grid method that refines cell granularity based on data density. Kim et al. \cite{kim2024improving} proposes a method that combines Geo-Indistinguishability \cite{andres2013geo} with adaptive grids, adjusting grid granularity based on real-time user density to improve location-based analysis accuracy. Unlike centralized approaches, several studies have explored Local Differential Privacy (LDP) to enhance location privacy. Erlingsson et al.  \cite{erlingsson2014rappor} introduced RAPPOR, a protocol that uses LDP in longitudinal data collection. Arcolezi et al.  \cite{arcolezi2022improving} proposed L-OSUE, an enhanced LDP protocol that improves frequency estimate accuracy across time and multiple dimensions. Additionally, Arcolezi et al.  \cite{arcolezi2022frequency} developed LOLOHA, an extension of OLH, for handling evolving data in trajectory-based applications, which refines hash functions dynamically to enhance location-based analysis accuracy. Cunningham et al. \cite{cunningham2021real} propose an LDP mechanism based on perturbing hierarchically structured, overlapping n-grams of trajectory data. It uses a multi-dimensional hierarchy over real-world places of interest to improve the realism and utility of perturbed, shared trajectories.
+
+While effective, applying LDP protocols to location privacy presents challenges. Specifically, discretizing continuous location data into a grid structure requires dynamic grid evolution to adapt to variations in user density, balancing privacy and data utility.
+
+This work explores the use of adaptive grids with LDP protocols to improve privacy and maintain high data utility. It will be compared experimentally against state-of-the-art LDP methods, such as RAPPOR, LOSUE, and LOLOHA, to demonstrate the effectiveness of adaptive grid structures in handling evolving location-based datasets. \looseness=-1
+
+
+\subsection{RAPPOR} \label{sec:rappor}
+RAPPOR \citep{erlingsson2014rappor} is an influential work in the development of LDP and frequency estimators. It makes use of two rounds of sanitization and \textit{memoization} to provide LDP guarantees for several queries over time. RAPPOR is especially relevant for longitudinal location data, as it allows for ongoing collection while protecting individual privacy by encoding and perturbing the data. In the context of location data, the domain size $k$ refers to the number of possible location encodings within the grid. Each user's location at a given timestamp is encoded into this k-dimensional space, and RAPPOR's perturbation mechanisms are applied to this encoding. This process is repeated at each timestamp, allowing for frequency estimation of location visits over time while preserving privacy. 
+
+The first round of sanitization is referred to as the PRR step (permanent randomized response), and the second as the IRR step (instantaneous randomized response), both referencing the randomized response algorithm and their respective functions. In the \textit{memoization} process, PRR adds noise to a value the first time it is processed, and then the sanitizer memoizes the noisy value, while IRR adds noise to every instance of a memoized value before sending a report to the aggregator. By memorizing a randomized version of a true value and consistently reusing it, or reusing it as input to a second round of sanitization, it becomes harder for an adversary to track changes in the data and reduces the impact of temporal correlations, making it more difficult to track changes in the data and infer the true values. As the domain size gets larger, it becomes a challenge to apply noise in a utility-preserving way, thus RAPPOR implements Unary Encoding as a means of guaranteeing LDP while reducing data utility loss. In Unary Encoding, an input value $v$ from a domain $D$ of size $k$ is encoded as a binary vector $B$ of length $k: B = [0, ..., 0, 1, 0, ..., 0]$, where only the v-th position is 1.
+
+The perturbation protocol for RAPPOR and other UE-based LDP protocols is as follows: Given the probabilities \textit{$p_1$, $p_2$, $q_1$, $q_2$} to flip the $i$-th position of the binary vector $B$, for the first sanitization round, we have 
+% 
+% \begin{align*}
+% Pr\bigr[\Psi_{UE_{(\epsilon)}}B'[i]=1] =
+% \begin{cases}
+%       p1, \text{if } B[i] = 1 \text{ and round = }1\\
+%       q1, \text{if } B[i] = 0 \text{ and round = }1\\
+%       p2, \text{if } B[i] = 1 \text{ and round = }2\\
+%       q2, \text{if } B[i] = 0 \text{ and round = }2\\
+% \end{cases},
+% \end{align*}
+%
+
+\begin{align*}
+Pr\bigr[\Psi_{UE_{(\epsilon)}}B'[i]=1] =
+\begin{cases}
+      p_1, \text{if } B[i] = 1 \\
+      q_1, \text{if } B[i] = 0 \\
+\end{cases},
+\end{align*}
+
+
+and for the second
+
+
+\begin{align*}
+Pr\bigr[\Psi_{UE_{(\epsilon)}}B'[i]=1] =
+\begin{cases}
+      p_2, if B[i] = 1\\
+      q_2, if B[i] = 0\\
+\end{cases},
+\end{align*}
+% 
+\textit{$p_1$, $p_2$, $q_1$, $q_2$}  are computed as function of $\epsilon_{\infty}$ and $\epsilon_{1}$ by symmetric unary encoding (SUE) to satisfy: $p_1 = \frac{e^{\epsilon_{\infty}/2}}{e^{\epsilon_{\infty}/2} + 1}$, $q_1 = \frac{1}{e^{\epsilon_{\infty}/2} + 1}$, $p_2 = 0.75$, and $q_2=1-p_2$. 
+
+% So $\epsilon_1 = ln\left(\frac{(p_1p_2-q_2(p_1-1))(p_2q_1-q_2(q_1-1)-1)} {(p_2q_1-q_2(q_1-1))(p_1p_2-q_2(p_1-1)-1)}\right)$.
+% 
+% \begin{equation}
+% \small
+% \label{eq:eps1_ue}
+% \epsilon_1 = ln\left(\frac{(p_1p_2-q_2(p_1-1))(p_2q_1-q_2(q_1-1)-1)} {(p_2q_1-q_2(q_1-1))(p_1p_2-q_2(p_1-1)-1)}\right)
+% \end{equation}
+% 
+$\epsilon_{\infty}$ is an upper bound for the privacy budget as the number of reports sampled by the frequency estimator tends to infinity, and $\epsilon_{1}$ is a lower bound for a single report. The value of $\epsilon_{1}$ is computed using the following equation:
+
+\begin{equation}
+% \small
+\label{eq:eps1_ue}
+\epsilon_1 = ln\left(\frac{(p_1p_2-q_2(p_1-1))(p_2q_1-q_2(q_1-1)-1)} {(p_2q_1-q_2(q_1-1))(p_1p_2-q_2(p_1-1)-1)}\right)
+\end{equation}
+
+All frequency estimators presented in this paper, including those based on the RAPPOR protocol discussed in this section and the L-OSUE and LOLOHA protocols covered in the following two sections, utilize the same unbiased function to estimate frequencies at the aggregator \citep{erlingsson2014rappor,arcolezi2022improving,arcolezi2022frequency}:  \looseness=-1
+% 
+\begin{equation}
+% \small
+\label{eq:round2_est}
+\Phi_{f_L}(v) := \frac{C(v) - nq_1(p_2-q_2) - nq_2}{n(p_1 - q_1)(p_2 - q_2)} = \frac{{\frac{C(v)/n - q_2}{p_2 - q_2}} - q_1}{p_1 - q_1},
+\end{equation}
+% 
+where \textit{n} is the number of reports, \textit{p1, p2} \textit{, q1, q2} are the probabilities for perturbing the data, and \textit{C(v)} is the count of reports with a value \textit{v}, given $v \in D$. \looseness=-1
+
+\subsection{L-OSUE}
+\label{sec:losue}
+
+L-OSUE is an alternative to RAPPOR proposed in \cite{arcolezi2022improving}. It uses the OUE \cite{8253434} protocol for its first round of sanitization (PRR step) and SUE \cite{de2020protecting}, which is equivalent to simple single-time RAPPOR, for the second (IRR step). The perturbation algorithm follows the same structure as RAPPOR, but with $p_1 =0.5$, $q_1 = \frac{1}{e^\epsilon_{\infty} + 1}$, $p2=\frac{e^\epsilon\infty e^\epsilon_1-1}{e^{\epsilon_\infty} - e^\epsilon_1+e^{\epsilon_\infty +\epsilon_1}-1}$, $q_2=1-p2$, and $\epsilon_1$ calculated using equation \ref{eq:eps1_ue}. It provides better privacy guarantees than RAPPOR, while not introducing too much extra noise and preserving similar data utility. Similar to RAPPOR, L-OSUE can be applied to longitudinal location data by encoding locations into a $k$-dimensional space, where $k$ is the number of cells in the grid.  At each time step, user locations are encoded, perturbed using L-OSUE's two-round approach, and reported. This allows for improved accuracy in frequency estimates across both time and multiple dimensions, crucial for longitudinal location-based analysis.
+
+\subsection{LOLOHA}
+\label{sec:loloha}
+
+Unlike RAPPOR and L-OSUE, LOLOHA \citep{arcolezi2022frequency} does not make use of unary encoding; it instead improves utility by shrinking the domain size through local hashing. Like the previously cited estimators, LOLOHA implements two rounds of sanitization and memoization to provide LDP guarantees while maintaining utility for queries executed over time.  In the context of location data, LOLOHA uses a hash function to reduce the domain size from $k$ (the number of grid cells) to a smaller space before applying perturbation. This hashing is crucial for managing the evolving nature of location data over time. At each timestamp, user locations are hashed, perturbed, and reported, allowing the aggregator to estimate frequency distributions accurately as new reports are continuously collected. In this paper, we will use OLOLOHA, the optimal configuration of LOLOHA. It shrinks a domain size $k$ to an optimal hashed size $g$, that is computed by 
+% 
+\begin{equation}
+% \small
+g = 1 + \max\left(1, \left\lceil \frac{1 - a^2 + \sqrt{A}}{6(a - b)} \right\rceil \right),
+\label{eq:ololoha_g}
+\end{equation}
+where $A = a^4 - 14a^2 + 12ab(1 - ab) + 12a^3b + 1$ given $a = \epsilon_{\infty}$ and $b = e^{\alpha\epsilon_{\infty}}$ for $\alpha \in (0, 1)$.
+
+In local hashing, given an original domain size $k$ and input values $v \in V,$ a randomly chosen universal hash function $H$ maps the original domain to a range $[1...g]$ with $g \geq 2$. Approximately $k/g$ values $v \in V $can be mapped to the same hashed value $H(v) \in [1...g]$ due to collision. The sanitization protocol for LOLOHA is as follows:
+% 
+\begin{align*}
+\forall_{x \in [1...g]}\text{ }Pr\bigr[\Psi_{LOLOHA_{(\epsilon_\infty)}}(v) = x\bigr] =
+\begin{cases}
+      p_1 = \frac{e^\epsilon}{e^\epsilon + g - 1}  & \text{if x = v} \\
+      q_2 = \frac{1}{e^\epsilon + g - 1} & \text{if x $\neq$ v} \\
+\end{cases} 
+\end{align*}
+followed by a second round that outputs a report $x'$:
+\begin{align*}
+\forall_{x' \in [1...g]}\text{ }Pr\bigr[\Psi_{L-GRR_{(\epsilon_1)}}(x) = x'\bigr] =
+\begin{cases}
+      p_2 & \text{if x' = x} \\
+      q_2 = \frac{1 - p_2}{g - 1} & \text{if x' $\neq$ x} \\
+\end{cases} 
+\end{align*}
+% where $p_2 = \frac{q_1 - e^{\epsilon_1}p_1}{(-p_1e^{\epsilon_1}) + gq_1e^{\epsilon_1} - q_1e^{\epsilon_1} - p_1(g-1)+q_1}$ as $\epsilon_1 = ln(\frac{p_1p_2+q_1q_2}{p_1q_2+q_1p_2})$ for LOLOHA. \looseness=-1
+where:
+\begin{align*}
+\epsilon_1 &= \ln\left(\frac{p_1p_2 + q_1q_2}{p_1q_2 + q_1p_2}\right), \text{ and} \\
+p_2 &= \frac{q_1 - e^{\epsilon_1}p_1}{
+  -p_1e^{\epsilon_1} + gq_1e^{\epsilon_1} - q_1e^{\epsilon_1} - p_1(g - 1) + q_1}.
+\end{align*}
+
+After the sanitization step, the reports, privacy budgets, and hash function seeds are sent to the aggregator, which then outputs estimates with the original domain size $k$.

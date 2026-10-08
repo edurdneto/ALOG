@@ -1,15 +1,27 @@
 #!/bin/bash
+# Runs the ALOQ experiments for the four datasets.
+# Results are written to Results/Experiment_<Dataset>/<Budget|Granularity|Numpoints>/
+#
+# Usage:
+#   ./run.sh                 # all datasets
+#   ./run.sh uniform porto   # only the datasets given (uniform, normal, geo, porto)
 
-# Ensure the script exits on any error
 set -e
+cd "$(dirname "$0")"
 
-# Array of filenames to pass as arguments
-FILES=("testes_profile_exp12_simple_uniform.txt" "testes_profile_exp12_simple_norm.txt" "testes_profile_exp12_simple_geo.txt" "testes_profile_exp12_simple_porto.txt")
+DATASETS=("$@")
+if [ ${#DATASETS[@]} -eq 0 ]; then
+    DATASETS=(uniform normal geo porto)
+fi
 
-# Loop through each file and call the Python program
-for FILE in "${FILES[@]}"; do
-    echo "Running ALOG with argument: $FILE"
-    python3 alog.py "$FILE"
+for DATASET in "${DATASETS[@]}"; do
+    PROFILE="profiles/${DATASET}.txt"
+    if [ ! -f "$PROFILE" ]; then
+        echo "Profile not found: $PROFILE" >&2
+        exit 1
+    fi
+    echo "=== Running ALOQ on ${DATASET} (${PROFILE}) ==="
+    python3 aloq.py "$PROFILE"
 done
 
 echo "All executions completed."

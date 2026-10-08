@@ -1,0 +1,34 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+In this work, we proposed ALOG, a framework for privacy preserving frequency estimation using adaptive grids under Local Differential Privacy (LDP). Through extensive evaluations across synthetic and real-world datasets, we demonstrated the superiority of ALOG approaches, particularly ALOG-2R, in balancing utility and privacy compared to traditional methods such as RAPPOR, LOLOHA, and LOSUE. The results highlighted the effectiveness of adaptive grids in dynamically adjusting to varying data densities, significantly reducing MSE while maintaining robust privacy guarantees.
+
+Key findings include the importance of selecting appropriate parameters, such as grid adaptation windows and privacy budget partitioning. ALOG-2R consistently delivered superior performance, with optimal budget partitioning strategies (e.g., 30\%-70\% for most datasets) and smaller grid adaptation windows yielding the best utility. However, a notable limitation of the current ALOG approaches is their inability to reduce grid granularity when data density decreases. This results in granular grids that can lead to increased error over extended periods.
+
+In real-world scenarios, where the distribution of reports evolves throughout the day—such as during peak and off-peak hours in urban settings—it is critical to overcome this limitation to provide a truly adaptive model. Addressing this challenge would enable the grid to dynamically adjust to both increases and decreases in data density, ensuring optimal utility and efficient resource usage.
+
+% \subsubsection*{Future Works:}
+% While ALOG has demonstrated significant advantages, nonetheless, further research is needed to explore several promising directions. One of them is the investigation of automated parameter-tuning mechanisms. We believe that applying machine learning techniques to optimize budget partitioning and window size could further optimize utility and efficiency across diverse datasets and application scenarios. Additionally, enhancing the granularity adjustment process is a critical area of improvement. Introducing mechanisms to dynamically increase and decrease grid granularity, such as merging or splitting cells based on data density, could address the current limitations of ALOG-2R and ALOG-1R-a, enabling more precise adaptations over time.
+
+% These advancements would further refine the balance between privacy, utility, and adaptability, paving the way for even more robust and flexible solutions in privacy-preserving geospatial data analysis.
+
+\subsubsection*{Future Works:}
+While ALOG shows strong performance, further work is needed to explore several key directions. One is automating parameter tuning—using machine learning to optimize budget partitioning and window size could enhance utility and efficiency across varying datasets.
+Enhancing granularity adjustment through dynamic cell merging and splitting will directly overcome ALOG-2R and ALOG-1R-a's current limitations, enabling more adaptive data representation.
+These directions could further improve the balance among privacy, utility, and adaptability in privacy-preserving geospatial analysis.
+
+\subsection*{Acknowledgements}
+This research was partially supported by the Coordenação de Aperfeiçoamento de Pessoal de Nível Superior CAPES (grant \# 88882.454568/2019-01) and the Conselho Nacional de Desenvolvimento Científico e Tecnológico CNPq
+(grant \# 316729/2021-3).
+It was partially funded by Lenovo, as part of its R\&D investment under Brazilian Informatics Law. 
+
+
+\section{Artifacts}
+
+The artifacts for reproducing our experiments are available at:
+
+\begin{center}
+    \url{https://github.com/edurdneto/ALOG}
+\end{center}
+
+The repository includes source code, method implementations, experiment scripts, and reproduction instructions.

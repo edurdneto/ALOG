@@ -1,0 +1,162 @@
+%%
+%% This is a minimal skeleton LaTeX file for EDBT Proceedings papers.
+%%
+%% It uses the (somewhat) current ACM `sigconf' style with modifications
+%% for EDBT Proceedings to be published on OpenProceedings.org
+%%
+%% You will need (apart from the ACM style) two EDBT-specific files:
+%%
+%% openproceedings.png   -- the OpenProceedings.org logo to be placed
+%%                          on the top right corner of the first page
+%%
+%% edbt-macros-v29-n1.tex -- settings for Volume 29, Number 1
+%%
+
+\documentclass[sigconf]{acmart}
+
+\usepackage{multicol}
+\usepackage{multirow}
+\usepackage{xcolor, colortbl}
+\usepackage[linesnumbered,ruled,vlined,algoruled,boxed,noline,noend]{algorithm2e}
+
+\usepackage{pgfplots}
+\usepackage{tikz}
+\usetikzlibrary{patterns}
+\pgfplotsset{compat=1.15}
+
+\usepackage{array}
+\usepackage{makecell}
+\usepackage{subcaption}
+
+\usepackage{tabularx}   % For tabularx environment
+\usepackage{booktabs}   % For \toprule, \midrule, \bottomrule
+\usepackage{multirow}   % For \multirow
+\usepackage[table]{xcolor}
+
+
+%% copied from acmart.cls, but modified to a4paper
+\geometry{twoside=true, head=13pt,
+     a4paper, % for EDBT: use A4 paper
+%     paperwidth=8.5in, paperheight=11in,
+     includeheadfoot, columnsep=2pc,
+     top=57pt, bottom=73pt, inner=54pt, outer=54pt,
+     marginparwidth=2pc,heightrounded
+     }%
+
+\AtBeginMaketitle{%
+  \input{edbt-macros-v29-n1}
+}% \AtBeginMaketitle
+
+%% end of the preamble, start of the body of the document source.
+
+\begin{document}
+
+%%
+%% The "title" command has an optional parameter,
+%% allowing the author to define a "short title" to be used in page headers.
+%%
+%% EDBT rule: --> Please use ``titlecase'' in the title!
+
+\title{ALOG: Adaptive Longitudinal Grids for Geospatial Data using Local Differential Privacy}
+
+%%
+%% The "author" command and its associated commands are used to define
+%% the authors and their affiliations.
+%% Of note is the shared affiliation of the first two authors, and the
+%% "authornote" and "authornotemark" commands
+%% used to denote shared contribution to the research.
+%%
+%% EDBT rule: --> At least 1 (the corresponding) author needs to have a
+%%                registered ORCID, ideally all authors have one
+\author{Eduardo R. Duarte Neto}
+\affiliation{%
+  \institution{Universidade Federal do Ceará, Brazil}
+  \city{Fortaleza}
+  \state{Cear\'{a}}
+  \country{Brazil}
+}
+\email{eduardo.rodrigues@lsbd.ufc.br}
+\orcid{0000-0003-1222-563X}
+
+\author{Jos\'{e} S. Costa Filho}
+\orcid{0000-0002-8452-1975}
+\affiliation{%
+  \institution{Universidade Federal do Ceará, Brazil}
+  \city{Fortaleza}
+  \state{Cear\'{a}}
+  \country{Brazil}
+}
+\email{serafim.costa@lsbd.ufc.br}
+
+\author{Antonio A. Marreiras Neto}
+\affiliation{%
+  \institution{Universidade Federal do Ceará, Brazil}
+  \city{Fortaleza}
+  \state{Cear\'{a}}
+  \country{Brazil}}
+\orcid{0009-0009-0735-4964}
+\email{antonio.marreiras@lsbd.ufc.br}
+
+
+\author{Javam C. Machado}
+\affiliation{%
+  \institution{Universidade Federal do Ceará, Brazil}
+  \city{Fortaleza}
+  \state{Cear\'{a}}
+  \country{Brazil}}
+\email{javam.machado@lsbd.ufc.br}
+\orcid{0000-0002-8430-9421}
+
+
+%%
+%% By default, the full list of authors will be used in the page
+%% headers. Often, this list is too long, and will overlap
+%% other information printed in the page headers. This command allows
+%% the author to define a more concise list
+%% of authors' names for this purpose.
+
+\renewcommand{\shortauthors}{Duarte et al.} %%MS: removed contents
+%\renewcommand{\shorttitle}{} %%MS: added this one
+
+
+
+%%
+%% The abstract is a short summary of the work to be presented in the
+%% article.
+\begin{abstract}
+  This study introduces ALOG (Adaptive Longitudinal Grids for Geospatial Data using Local Differential Privacy), a novel framework designed to optimize geospatial data collection and frequency estimation while ensuring robust user privacy. ALOG leverages adaptive grids to dynamically adjust spatial granularity based on data density, eliminating the need for prior knowledge about data distribution. We evaluate ALOG and its variations using both synthetic and real-world datasets, comparing their effectiveness against state-of-the-art protocols. Experimental results demonstrate ALOG's superior performance in balancing privacy and utility, particularly under varying grid sizes and privacy budgets. The findings highlight the effectiveness of adaptive grid refinement in achieving precise frequency estimates in privacy-sensitive applications without relying on prior knowledge of data density. 
+\end{abstract}
+
+%% Keywords. The author(s) should pick words that accurately describe
+%% the work being presented. Separate the keywords with commas.
+ \keywords{Local Differential Privacy, Adaptive Grids, Geospatial Data, Frequency Estimation}
+
+%%
+%% This command processes the author and affiliation and title
+%% information and builds the first part of the formatted document.
+\maketitle
+
+\input{sections/introduction.tex}
+\input{sections/background.tex}
+\input{sections/related_work.tex}
+\input{sections/approach.tex}
+\input{sections/evaluation.tex}
+\input{sections/conclusion.tex}
+
+
+%%
+%% The next two lines define the bibliography style to be used, and
+%% the bibliography file.
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{edubibtex}
+
+
+%%
+%% If your work has an appendix, this is the place to put it.
+%%\appendix
+
+
+\end{document}
+\endinput
+%%
+%% End of file `edbt-paper-template-29-1.tex'.
