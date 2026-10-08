@@ -117,10 +117,3 @@ folder:Budget;k:256;e:0.05,0.1,0.3,0.6;e_prop:0.3;w:4;p:40;structures:Uniform,AP
 
 The profiles in `profiles/` reproduce the experiments of the paper. The fixed ALOQ parameters are set in `aloq.py`: similarity threshold 0.7, similarity window 3, α = 0.1, and budget reduction factor 0.1 (0.6 for LOLOHA).
 
-## Running ALOG (EDBT 2026)
-
-```bash
-./run_alog.sh
-```
-
-It uses `alog.py` and the profiles in `profiles/alog/`.
